@@ -115,5 +115,36 @@ covid5.svy <- covid5.svy %>% mutate(
 svymean(~rt_hab + rt_ef, covid5.svy, na.rm = T)
 
 
+# Media de rendimentos do trabalho HABITUAL por sexo
+svyby(formula = ~rt_hab, 
+      by = ~sexo, 
+      design = covid5.svy, 
+      FUN = svymean, 
+      na.rm = TRUE, 
+      row.names = FALSE)
+
+# Media de rendimentos do trabalho EFETIVO por sexo
+svyby(formula = ~rt_ef, 
+      by = ~sexo, 
+      design = covid5.svy, 
+      FUN = svymean, 
+      na.rm = TRUE, 
+      row.names = FALSE)
+
+
+
+###--------------------------------------------------------------------------###
+### Estimativa de rendimentos do trabalho (média e IC) por sexo
+
+rendtrab_sexo <-covid5.svy %>% 
+    group_by(sexo) %>% 
+    summarise(rendtrab_hab = survey_mean(rt_hab,
+                                           vartype = c("ci"),
+                                           level = 0.95,
+                                           na.rm = TRUE),
+              rendtrab_ef = survey_mean(rt_ef, 
+                                          vartype = c("ci"),
+                                          level = 0.95,
+                                          na.rm = TRUE))
 
 ###--------------------------------------------------------------------------###
