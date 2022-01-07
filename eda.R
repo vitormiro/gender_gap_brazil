@@ -1,5 +1,6 @@
 
 ## Analise do diferencial de rendimentos do trabalho por genero
+## Análise exploratória
 ## Autores: Vitor Hugo Miro e Natalia Carvalho
 
 ###--------------------------------------------------------------------------###
@@ -12,6 +13,8 @@ options(scipen = 999) # para evitar notacao cientifica.
 # Pacotes
 library(PNADcIBGE)
 library(tidyverse)
+library(tidymodels)
+library(fastDummies)
 library(survey)
 library(srvyr)
 library(knitr)
@@ -37,14 +40,15 @@ variaveis <- c('Ano', 'Trimestre', 'UF', 'UPA', 'Estrato',
 
 
 ###--------------------------------------------------------------------------###
-#
+###--------------------------------------------------------------------------###
+## ESSA PARTE DO CÓDIGO SÓ É EXECUTADA NA PRIMEIRA VEZ, PARA BAIXAR OS DADOS
 # Carrega dados da PNADC 
 pnadc <- get_pnadc(year = 2019,
                    vars = variaveis,
                    quarter = 4,
-                   design = TRUE,
+                   design = FALSE,
                    labels = FALSE,
-                   deflator = TRUE,
+                   deflator = FALSE,
                    defyear = 2019)
 
 # Classe do objeto gerado
@@ -53,8 +57,9 @@ class(pnadc)
 # estrutura dos dados
 glimpse(pnadc)
 
-saveRDS(pnadc, "svypnadc19.rds")
+saveRDS(pnadc, "pnadc19.rds")
 
+###--------------------------------------------------------------------------###
 ###--------------------------------------------------------------------------###
 # ler dados salvos (após os comandos acima podemos iniciar)
 pnadc <- readRDS("pnadc19.rds")
@@ -65,13 +70,6 @@ class(pnadc)
 # estrutura dos dados
 glimpse(pnadc)
 
-
-###--------------------------------------------------------------------------###
-
-# Aplica funcao 'as_survey' do pacote srvyr
-pnadc <- as_survey(pnadc)
-
-class(pnadc)
 
 ###--------------------------------------------------------------------------###
 ### ANALISE EXPLORATORIA INICIAL
@@ -128,57 +126,71 @@ pnadc <- pnadc %>% mutate(rendefh = ifelse(rendef==0 | horas == 0, NA,
                           lrendefh = ifelse(rendefh==0, NA, log(rendefh)))
 
 
+###--------------------------------------------------------------------------###
+
+# Aplicar o desenho amostral da PNADC
+svypnadc <- pnadc_design(pnadc)
+class(svypnadc )
+
+# Aplica funcao 'as_survey' do pacote srvyr. Para uso de tidyverse.
+svypnadc <- as_survey(svypnadc)
+class(svypnadc )
+
+
+###--------------------------------------------------------------------------###
+### ANALISE EXPLORATORIA INICIAL
+
 # Amostra: svytotal(~sexo, pnadc, na.rm = T)
 # proporção: svymean(~sexo, pnadc, na.rm = T)
 
 # amostra e proporção
-pnadc %>% 
-  group_by(sexo) %>% 
-  summarise(total = survey_total(),
-            prop = round(100*survey_mean(), 2))
+svypnadc %>% 
+    group_by(sexo) %>% 
+    summarise(total = survey_total(),
+              prop = round(100*survey_mean(), 2))
 
 
-svytable(~eativo, design = pnadc)
-svytable(~ocup, design = pnadc)
+svytable(~eativo, design = svypnadc)
+svytable(~ocup, design = svypnadc)
 
-###############################################################################
+
+###------------------------------------------------------------------------###
 # FILTRO: Manter na base apenas indivíduos com idade de 25 anos ou mais
-pnadc <- pnadc %>% filter(idade >=25)
+svypnadc <- svypnadc %>% filter(idade >=25)
 
 # total
-pnadc %>% 
-  group_by(sexo) %>% 
-  summarise(total = survey_total(),
-            prop = round(100*survey_mean()))
+svypnadc %>% 
+    group_by(sexo) %>% 
+    summarise(total = survey_total(),
+              prop = round(100*survey_mean()))
 
 # Ativos = na força de trabalho
-pnadc %>% 
-  group_by(sexo) %>% 
-  summarise(ativos = survey_total(eativo == "econ.ativo", na.rm = TRUE),
-            p_ativos = round(100*survey_mean(eativo == "econ.ativo", 
-                                             na.rm = TRUE), 2))
+svypnadc %>% 
+    group_by(sexo) %>% 
+    summarise(ativos = survey_total(eativo == "econ.ativo", na.rm = TRUE),
+              p_ativos = round(100*survey_mean(eativo == "econ.ativo", 
+                                               na.rm = TRUE), 2))
 
 # Ocupados
-pnadc %>% 
-  group_by(sexo) %>% 
-  summarise(ocupados = survey_total(ocup == "ocupado", na.rm = TRUE),
-            p_ocupados = round(100*survey_mean(ocup == "ocupado", 
+svypnadc %>% 
+    group_by(sexo) %>% 
+    summarise(ocupados = survey_total(ocup == "ocupado", na.rm = TRUE),
+              p_ocupados = round(100*survey_mean(ocup == "ocupado", 
                                              na.rm = TRUE), 2))
 
 
-###############################################################################
+###------------------------------------------------------------------------###
 # FILTRO: Manter na base apenas indivíduos ocupados com rendimentos positivos
-pnadc <- pnadc %>% filter(ocup == "ocupado" & rendef > 0)
-
+svypnadc <- svypnadc %>% filter(ocup == "ocupado" & rendef > 0)
 
 # Rendimentos do trabalho (efetivo)
-pnadc %>% 
-  group_by(sexo) %>% 
-  summarise(rend_medio = survey_mean(rendef, na.rm = TRUE),
-            rend_hora_medio = survey_mean(rendefh, na.rm = TRUE))
+svypnadc %>% 
+    group_by(sexo) %>% 
+    summarise(rend_medio = survey_mean(rendef, na.rm = TRUE),
+              rend_hora_medio = survey_mean(rendefh, na.rm = TRUE))
 
 
-
+###------------------------------------------------------------------------###
 
 
 
